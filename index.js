@@ -4,59 +4,48 @@ import fetch from "node-fetch";
 const app = express();
 app.use(express.json());
 
-// Health check
 app.get("/", (req, res) => {
   res.send("Imagix AI Server Running");
 });
 
-// Image generation API
 app.post("/generate", async (req, res) => {
-  const { prompt, size } = req.body;
-
-  if (!prompt) {
-    return res.status(400).json({
-      success: false,
-      error: "Prompt is required"
-    });
-  }
-
   try {
+    const { prompt, size } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({ error: "Prompt required" });
+    }
+
     const response = await fetch(
       "https://api.openai.com/v1/images/generations",
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": Bearer ${process.env.OPENAI_API_KEY}
+          Authorization: Bearer ${process.env.OPENAI_API_KEY},
         },
         body: JSON.stringify({
           model: "gpt-image-1",
           prompt: prompt,
-          size: size || "1024x1024"
-        })
+          size: size || "1024x1024",
+        }),
       }
     );
 
     const data = await response.json();
 
-    if (!response.ok) {
-      return res.status(500).json({
-        success: false,
-        error: "OpenAI API error",
-        details: data
-      });
+    if (!data.data) {
+      return res.status(500).json(data);
     }
 
     res.json({
       success: true,
-      image_url: data.data[0].url
+      image_url: data.data[0].url,
     });
-
   } catch (err) {
     res.status(500).json({
       success: false,
-      error: "Server error",
-      message: err.message
+      error: err.message,
     });
   }
 });
