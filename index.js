@@ -4,11 +4,11 @@ import fetch from "node-fetch";
 const app = express();
 app.use(express.json());
 
-// ENV variable se API key
+// OpenAI API key (Render ENV se aayega)
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 if (!OPENAI_API_KEY) {
-  console.error("❌ OPENAI_API_KEY missing");
+  console.error("❌ OPENAI_API_KEY not found");
   process.exit(1);
 }
 
@@ -17,15 +17,15 @@ app.get("/", (req, res) => {
   res.send("Imagix AI Server Running ✅");
 });
 
-// Image generation API
+// Image generation endpoint
 app.post("/generate", async (req, res) => {
   try {
-    const { prompt } = req.body;
+    const prompt = req.body.prompt;
 
     if (!prompt) {
       return res.status(400).json({
         success: false,
-        error: "Prompt required"
+        error: "Prompt is required"
       });
     }
 
@@ -47,7 +47,7 @@ app.post("/generate", async (req, res) => {
 
     const data = await response.json();
 
-    if (!data?.data?.[0]?.url) {
+    if (!data || !data.data || !data.data[0] || !data.data[0].url) {
       return res.status(500).json({
         success: false,
         error: "Image generation failed",
