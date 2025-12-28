@@ -1,59 +1,20 @@
-[3:53 pm, 28/12/2025] Manoj Kumar: import express from "express";
+import express from "express";
 import fetch from "node-fetch";
 
 const app = express();
 app.use(express.json());
 
-// ENV se API key
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// 🔴 Agar key missing ho to server start hi na ho
 if (!OPENAI_API_KEY) {
-  console.error("❌ OPENAI_API_KEY missing in environment variables");
+  console.error("OPENAI_API_KEY missing");
   process.exit(1);
 }
 
-// ✅ Health check
 app.get("/", (req, res) => {
   res.send("Imagix AI Server Running ✅");
 });
 
-// 🎨 Image generation API
-app.post("/generate", async (req, res) => {
-  try {
-    const { prompt } = req.body;
-
-    if (!prompt) {
-      return res.status(400).json({ error: "Prompt required" });
-    }
-
-    const response = await fetch(
-      "https://api.openai.com/v1/images/generations",
-      {
-        method: "POST",
- …
-[3:56 pm, 28/12/2025] Manoj Kumar: fix authorization header
-[4:17 pm, 28/12/2025] Manoj Kumar: import express from "express";
-import fetch from "node-fetch";
-
-const app = express();
-app.use(express.json());
-
-// ENV se OpenAI API key
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
-// ❌ agar key missing ho to server start hi na ho
-if (!OPENAI_API_KEY) {
-  console.error("❌ OPENAI_API_KEY missing");
-  process.exit(1);
-}
-
-// health check
-app.get("/", (req, res) => {
-  res.send("Imagix AI Server Running ✅");
-});
-
-// image generation API
 app.post("/generate", async (req, res) => {
   try {
     const { prompt } = req.body;
@@ -68,7 +29,7 @@ app.post("/generate", async (req, res) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": Bearer ${OPENAI_API_KEY}
+          "Authorization": `Bearer ${OPENAI_API_KEY}`
         },
         body: JSON.stringify({
           model: "gpt-image-1",
@@ -101,7 +62,6 @@ app.post("/generate", async (req, res) => {
   }
 });
 
-// start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("Imagix AI server running on port", PORT);
