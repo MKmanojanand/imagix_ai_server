@@ -1,23 +1,20 @@
 import express from "express";
 import fetch from "node-fetch";
+import cors from "cors";
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
-// ENV
+const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-if (!OPENAI_API_KEY) {
-  console.error("❌ OPENAI_API_KEY missing");
-  process.exit(1);
-}
-
-// Health check
+/* ================= ROOT CHECK ================= */
 app.get("/", (req, res) => {
   res.send("Imagix AI Server Running ✅");
 });
 
-// IMAGE GENERATE API
+/* ================= IMAGE GENERATE ================= */
 app.post("/generate", async (req, res) => {
   try {
     const { prompt } = req.body;
@@ -35,7 +32,7 @@ app.post("/generate", async (req, res) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": Bearer ${OPENAI_API_KEY}
+          "Authorization": "Bearer " + OPENAI_API_KEY
         },
         body: JSON.stringify({
           model: "gpt-image-1",
@@ -47,29 +44,28 @@ app.post("/generate", async (req, res) => {
 
     const data = await response.json();
 
-    if (!response.ok) {
-      return res.status(500).json({
+    if (data.error) {
+      return res.status(400).json({
         success: false,
-        message: "Image generation failed",
-        details: data
+        error: data.error
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       image_url: data.data[0].url
     });
 
   } catch (err) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
+      message: "Server error",
       error: err.message
     });
   }
 });
 
-// START SERVER
-const PORT = process.env.PORT || 3000;
+/* ================= START SERVER ================= */
 app.listen(PORT, () => {
-  console.log("Imagix AI server running on port", PORT);
+  console.log("Imagix AI server running on port " + PORT);
 });
