@@ -7,7 +7,7 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-/* ================= HEALTH CHECK ================= */
+/* ================= ROOT CHECK ================= */
 app.get("/", (req, res) => {
   res.send("Imagix AI Server Running ✅");
 });
@@ -44,7 +44,10 @@ app.post("/text", async (req, res) => {
     const data = await response.json();
 
     if (data.error) {
-      return res.json({ success: false, error: data.error });
+      return res.json({
+        success: false,
+        error: data.error
+      });
     }
 
     res.json({
@@ -60,7 +63,7 @@ app.post("/text", async (req, res) => {
   }
 });
 
-/* ================= IMAGE MODEL ================= */
+/* ================= IMAGE MODEL (BASE64) ================= */
 app.post("/image", async (req, res) => {
   try {
     const { prompt } = req.body;
@@ -83,23 +86,24 @@ app.post("/image", async (req, res) => {
         body: JSON.stringify({
           model: "gpt-image-1",
           prompt: prompt,
-          size: "1024x1024"
+          size: "1024x1024",
+          response_format: "b64_json"
         })
       }
     );
 
     const data = await response.json();
 
-    if (data.error) {
+    if (!data.data || !data.data[0] || !data.data[0].b64_json) {
       return res.json({
         success: false,
-        error: data.error
+        error: data
       });
     }
 
     res.json({
       success: true,
-      image_url: data.data[0].url
+      image_base64: data.data[0].b64_json
     });
 
   } catch (err) {
