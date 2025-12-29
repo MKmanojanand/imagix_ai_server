@@ -7,20 +7,68 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-/* ================= ROOT CHECK ================= */
+/* ================= HEALTH CHECK ================= */
 app.get("/", (req, res) => {
   res.send("Imagix AI Server Running ✅");
 });
 
-/* ================= IMAGE GENERATE ================= */
-app.post("/generate", async (req, res) => {
+/* ================= TEXT MODEL ================= */
+app.post("/text", async (req, res) => {
   try {
     const { prompt } = req.body;
 
     if (!prompt) {
-      return res.status(400).json({
+      return res.json({
         success: false,
-        message: "Prompt is required"
+        message: "Prompt missing"
+      });
+    }
+
+    const response = await fetch(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + OPENAI_API_KEY
+        },
+        body: JSON.stringify({
+          model: "gpt-4.1-mini",
+          messages: [
+            { role: "user", content: prompt }
+          ]
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (data.error) {
+      return res.json({ success: false, error: data.error });
+    }
+
+    res.json({
+      success: true,
+      reply: data.choices[0].message.content
+    });
+
+  } catch (err) {
+    res.json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
+/* ================= IMAGE MODEL ================= */
+app.post("/image", async (req, res) => {
+  try {
+    const { prompt } = req.body;
+
+    if (!prompt) {
+      return res.json({
+        success: false,
+        message: "Prompt missing"
       });
     }
 
@@ -43,21 +91,20 @@ app.post("/generate", async (req, res) => {
     const data = await response.json();
 
     if (data.error) {
-      return res.status(400).json({
+      return res.json({
         success: false,
         error: data.error
       });
     }
 
-    return res.json({
+    res.json({
       success: true,
       image_url: data.data[0].url
     });
 
   } catch (err) {
-    return res.status(500).json({
+    res.json({
       success: false,
-      message: "Server error",
       error: err.message
     });
   }
