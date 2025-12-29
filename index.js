@@ -4,64 +4,29 @@ import fetch from "node-fetch";
 const app = express();
 app.use(express.json());
 
+// ENV
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-/* ================= HEALTH CHECK ================= */
+if (!OPENAI_API_KEY) {
+  console.error("❌ OPENAI_API_KEY missing");
+  process.exit(1);
+}
+
+// Health check
 app.get("/", (req, res) => {
   res.send("Imagix AI Server Running ✅");
 });
 
-/* ================= TEXT MODEL TEST ================= */
-app.post("/test-text", async (req, res) => {
-  try {
-    const { prompt } = req.body;
-
-    if (!prompt) {
-      return res.json({
-        success: false,
-        message: "Prompt missing"
-      });
-    }
-
-    const response = await fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": Bearer ${OPENAI_API_KEY}
-        },
-        body: JSON.stringify({
-          model: "gpt-4.1-mini",
-          messages: [
-            { role: "user", content: prompt }
-          ]
-        })
-      }
-    );
-
-    const data = await response.json();
-
-    res.json({
-      success: true,
-      reply: data.choices[0].message.content
-    });
-
-  } catch (err) {
-    res.json({
-      success: false,
-      error: err.message
-    });
-  }
-});
-
-/* ================= IMAGE GENERATION ================= */
+// IMAGE GENERATE API
 app.post("/generate", async (req, res) => {
   try {
     const { prompt } = req.body;
 
     if (!prompt) {
-      return res.status(400).json({ error: "Prompt required" });
+      return res.status(400).json({
+        success: false,
+        message: "Prompt is required"
+      });
     }
 
     const response = await fetch(
@@ -82,7 +47,7 @@ app.post("/generate", async (req, res) => {
 
     const data = await response.json();
 
-    if (!data.data || !data.data[0]) {
+    if (!response.ok) {
       return res.status(500).json({
         success: false,
         message: "Image generation failed",
@@ -103,9 +68,8 @@ app.post("/generate", async (req, res) => {
   }
 });
 
-/* ================= START SERVER ================= */
+// START SERVER
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
   console.log("Imagix AI server running on port", PORT);
 });
