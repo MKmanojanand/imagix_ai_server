@@ -86,8 +86,7 @@ app.post("/image", async (req, res) => {
         body: JSON.stringify({
           model: "gpt-image-1",
           prompt: prompt,
-          size: "1024x1024",
-          response_format: "b64_json"
+          size: "1024x1024"
         })
       }
     );
