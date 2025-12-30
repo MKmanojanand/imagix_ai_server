@@ -63,7 +63,7 @@ app.post("/text", async (req, res) => {
   }
 });
 
-/* ================= IMAGE MODEL (BASE64) ================= */
+/* ================= IMAGE MODEL (LOW COST) ================= */
 app.post("/image", async (req, res) => {
   try {
     const { prompt } = req.body;
@@ -86,7 +86,9 @@ app.post("/image", async (req, res) => {
         body: JSON.stringify({
           model: "gpt-image-1",
           prompt: prompt,
-          size: "1024x1024"
+          size: "512x512",   // 🔥 LOWEST COST
+          quality: "low",    // 🔥 LOW QUALITY
+          n: 1               // 🔥 SINGLE IMAGE
         })
       }
     );
