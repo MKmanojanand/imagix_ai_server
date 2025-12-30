@@ -34,9 +34,7 @@ app.post("/text", async (req, res) => {
         },
         body: JSON.stringify({
           model: "gpt-4.1-mini",
-          messages: [
-            { role: "user", content: prompt }
-          ]
+          messages: [{ role: "user", content: prompt }]
         })
       }
     );
@@ -44,10 +42,7 @@ app.post("/text", async (req, res) => {
     const data = await response.json();
 
     if (data.error) {
-      return res.json({
-        success: false,
-        error: data.error
-      });
+      return res.json({ success: false, error: data.error });
     }
 
     res.json({
@@ -56,14 +51,11 @@ app.post("/text", async (req, res) => {
     });
 
   } catch (err) {
-    res.json({
-      success: false,
-      error: err.message
-    });
+    res.json({ success: false, error: err.message });
   }
 });
 
-/* ================= IMAGE MODEL (LOW COST) ================= */
+/* ================= IMAGE MODEL (1024x1024 • LOW • STABLE) ================= */
 app.post("/image", async (req, res) => {
   try {
     const { prompt } = req.body;
@@ -86,19 +78,25 @@ app.post("/image", async (req, res) => {
         body: JSON.stringify({
           model: "gpt-image-1",
           prompt: prompt,
-          size: "512x512",   // 🔥 LOWEST COST
-          quality: "low",    // 🔥 LOW QUALITY
-          n: 1               // 🔥 SINGLE IMAGE
+          size: "1024x1024",   // ✅ STABLE SIZE
+          quality: "low",      // ✅ LOW COST
+          n: 1                 // ✅ SINGLE IMAGE
         })
       }
     );
 
     const data = await response.json();
 
+    // Safety checks
+    if (data.error) {
+      return res.json({ success: false, error: data.error });
+    }
+
     if (!data.data || !data.data[0] || !data.data[0].b64_json) {
       return res.json({
         success: false,
-        error: data
+        error: "No image returned",
+        raw: data
       });
     }
 
@@ -108,10 +106,7 @@ app.post("/image", async (req, res) => {
     });
 
   } catch (err) {
-    res.json({
-      success: false,
-      error: err.message
-    });
+    res.json({ success: false, error: err.message });
   }
 });
 
