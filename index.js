@@ -63,7 +63,7 @@ app.post("/image", async (req, res) => {
       style && style.trim().length > 0 ? style.trim() : "Realistic";
 
     // ✅ IMPORTANT: backticks correct
-    const finalPrompt = ${prompt}\nStyle: ${finalStyle};
+    const finalPrompt = $prompt}\nStyle: ${finalStyle};
 
     // ================= CASE 1: NO IMAGE -> GENERATE =================
     if (!input_image_base64 || input_image_base64.trim().length === 0) {
