@@ -61,7 +61,6 @@ app.post("/image", async (req, res) => {
 
     const finalStyle = style && style.trim().length > 0 ? style.trim() : "Realistic";
 
-    // ✅ FIXED TEMPLATE STRING
     const finalPrompt = ${prompt}\nStyle: ${finalStyle};
 
     // ================= CASE 1: NO IMAGE -> GENERATE =================
