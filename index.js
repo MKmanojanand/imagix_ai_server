@@ -163,5 +163,4 @@ app.post("/image", async (req, res) => {
 /* ================= START SERVER ================= */
 app.listen(PORT, () => {
   console.log("Imagix AI server running on port " + PORT);
-
 });
