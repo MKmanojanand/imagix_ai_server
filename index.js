@@ -8,12 +8,10 @@ app.use(express.json({ limit: "25mb" }));
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-/* ================= ROOT CHECK ================= */
 app.get("/", (req, res) => {
   res.send("Imagix AI Server Running ✅");
 });
 
-/* ================= HEALTH CHECK ================= */
 app.get("/health", (req, res) => {
   res.json({
     success: true,
@@ -23,7 +21,6 @@ app.get("/health", (req, res) => {
   });
 });
 
-/* ================= TEXT MODEL ================= */
 app.post("/text", async (req, res) => {
   try {
     if (!OPENAI_API_KEY) {
@@ -43,7 +40,7 @@ app.post("/text", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": Bearer ${OPENAI_API_KEY}
+        "Authorization": "Bearer " + OPENAI_API_KEY
       },
       body: JSON.stringify({
         model: "gpt-4.1-mini",
@@ -70,7 +67,6 @@ app.post("/text", async (req, res) => {
   }
 });
 
-/* ================= IMAGE (GENERATE + EDIT) ================= */
 app.post("/image", async (req, res) => {
   try {
     if (!OPENAI_API_KEY) {
@@ -87,15 +83,15 @@ app.post("/image", async (req, res) => {
     }
 
     const finalStyle = style && style.trim().length > 0 ? style.trim() : "Realistic";
-    const finalPrompt = ${prompt}\nStyle: ${finalStyle};
+    const finalPrompt = prompt + "\nStyle: " + finalStyle;
 
-    // ================= CASE 1: NO IMAGE -> GENERATE =================
+    // ============ Generate ============
     if (!input_image_base64 || input_image_base64.trim().length === 0) {
       const response = await fetch("https://api.openai.com/v1/images/generations", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": Bearer ${OPENAI_API_KEY}
+          "Authorization": "Bearer " + OPENAI_API_KEY
         },
         body: JSON.stringify({
           model: "gpt-image-1",
@@ -131,10 +127,9 @@ app.post("/image", async (req, res) => {
       });
     }
 
-    // ================= CASE 2: IMAGE PROVIDED -> EDIT =================
+    // ============ Edit ============
     let cleanBase64 = input_image_base64.trim();
 
-    // remove: data:image/jpeg;base64,....
     if (cleanBase64.startsWith("data:image")) {
       cleanBase64 = cleanBase64.substring(cleanBase64.indexOf(",") + 1);
     }
@@ -147,7 +142,6 @@ app.post("/image", async (req, res) => {
     form.append("size", "1024x1024");
     form.append("n", "1");
 
-    // upload image
     form.append("image", imageBuffer, {
       filename: "input.jpg",
       contentType: "image/jpeg"
@@ -156,7 +150,7 @@ app.post("/image", async (req, res) => {
     const response = await fetch("https://api.openai.com/v1/images/edits", {
       method: "POST",
       headers: {
-        "Authorization": Bearer ${OPENAI_API_KEY},
+        "Authorization": "Bearer " + OPENAI_API_KEY,
         ...form.getHeaders()
       },
       body: form
@@ -190,7 +184,6 @@ app.post("/image", async (req, res) => {
   }
 });
 
-/* ================= START SERVER ================= */
 app.listen(PORT, "0.0.0.0", () => {
   console.log("Imagix AI server running on port " + PORT);
 });
