@@ -3,8 +3,6 @@ import fetch from "node-fetch";
 import FormData from "form-data";
 
 const app = express();
-
-// base64 image bada hota hai isliye limit
 app.use(express.json({ limit: "25mb" }));
 
 const PORT = process.env.PORT || 3000;
@@ -20,11 +18,8 @@ app.post("/text", async (req, res) => {
   try {
     const { prompt } = req.body;
 
-    if (!prompt || prompt.trim().length === 0) {
-      return res.json({
-        success: false,
-        message: "Prompt missing"
-      });
+    if (!prompt) {
+      return res.json({ success: false, message: "Prompt missing" });
     }
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -56,37 +51,17 @@ app.post("/text", async (req, res) => {
 });
 
 /* ================= IMAGE MODEL (PROMPT + STYLE + OPTIONAL IMAGE) ================= */
-/*
-Android se JSON:
-
-Case 1: No image
-{
-  "prompt": "a lion",
-  "style": "Realistic"
-}
-
-Case 2: With image
-{
-  "prompt": "make it anime",
-  "style": "Anime",
-  "input_image_base64": "...."
-}
-*/
-
 app.post("/image", async (req, res) => {
   try {
     const { prompt, style, input_image_base64 } = req.body;
 
-    if (!prompt || prompt.trim().length === 0) {
-      return res.json({
-        success: false,
-        message: "Prompt missing"
-      });
+    if (!prompt) {
+      return res.json({ success: false, message: "Prompt missing" });
     }
 
     const finalStyle = style && style.trim().length > 0 ? style.trim() : "Realistic";
 
-    // ✅ FIXED: template string correct with backticks
+    // ✅ FIXED TEMPLATE STRING
     const finalPrompt = ${prompt}\nStyle: ${finalStyle};
 
     // ================= CASE 1: NO IMAGE -> GENERATE =================
@@ -114,11 +89,7 @@ app.post("/image", async (req, res) => {
       }
 
       if (!data.data || !data.data[0] || !data.data[0].b64_json) {
-        return res.json({
-          success: false,
-          error: "No image returned",
-          raw: data
-        });
+        return res.json({ success: false, error: "No image returned", raw: data });
       }
 
       return res.json({
@@ -131,7 +102,6 @@ app.post("/image", async (req, res) => {
     // ================= CASE 2: IMAGE PROVIDED -> EDIT =================
     let cleanBase64 = input_image_base64.trim();
 
-    // data:image/...;base64, remove
     if (cleanBase64.startsWith("data:image")) {
       cleanBase64 = cleanBase64.substring(cleanBase64.indexOf(",") + 1);
     }
@@ -144,7 +114,6 @@ app.post("/image", async (req, res) => {
     form.append("size", "1024x1024");
     form.append("n", "1");
 
-    // image attach
     form.append("image", imageBuffer, {
       filename: "input.png",
       contentType: "image/png"
@@ -166,11 +135,7 @@ app.post("/image", async (req, res) => {
     }
 
     if (!data.data || !data.data[0] || !data.data[0].b64_json) {
-      return res.json({
-        success: false,
-        error: "No image returned (edit)",
-        raw: data
-      });
+      return res.json({ success: false, error: "No image returned (edit)", raw: data });
     }
 
     return res.json({
