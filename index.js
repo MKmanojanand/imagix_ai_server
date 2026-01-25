@@ -19,10 +19,7 @@ app.post("/text", async (req, res) => {
     const { prompt } = req.body;
 
     if (!prompt) {
-      return res.json({
-        success: false,
-        message: "Prompt missing"
-      });
+      return res.json({ success: false, message: "Prompt missing" });
     }
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -39,69 +36,71 @@ app.post("/text", async (req, res) => {
 
     const data = await response.json();
 
-    if (data.error) {
-      return res.json({ success: false, error: data.error });
-    }
+    if (data.error) return res.json({ success: false, error: data.error });
 
-    res.json({
+    return res.json({
       success: true,
-      reply: data.choices[0].message.content
+      reply: data.choices?.[0]?.message?.content || ""
     });
-
   } catch (err) {
-    res.json({ success: false, error: err.message });
+    return res.json({ success: false, error: err.message });
   }
 });
 
-/* ================= IMAGE MODEL (GENERATE + EDIT) ================= */
+/* ================= IMAGE (GENERATE + EDIT) ================= */
+/*
+Android JSON:
+
+1) Generate:
+{
+  "prompt": "a lion",
+  "style": "Realistic"
+}
+
+2) Edit (image selected):
+{
+  "prompt": "make it anime",
+  "style": "Anime",
+  "input_image_base64": "...."
+}
+*/
+
 app.post("/image", async (req, res) => {
   try {
     const { prompt, style, input_image_base64 } = req.body;
 
     if (!prompt) {
-      return res.json({
-        success: false,
-        message: "Prompt missing"
-      });
+      return res.json({ success: false, message: "Prompt missing" });
     }
 
-    const finalStyle =
-      style && style.trim().length > 0 ? style.trim() : "Realistic";
+    const finalStyle = style && style.trim().length > 0 ? style.trim() : "Realistic";
 
+    // ✅ IMPORTANT: backticks (template string) - error fix
     const finalPrompt = ${prompt}\nStyle: ${finalStyle};
 
-    // ✅ CASE 1: No input image -> NORMAL GENERATE
+    // ================= CASE 1: NO IMAGE -> GENERATE =================
     if (!input_image_base64 || input_image_base64.trim().length === 0) {
-      const response = await fetch(
-        "https://api.openai.com/v1/images/generations",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + OPENAI_API_KEY
-          },
-          body: JSON.stringify({
-            model: "gpt-image-1",
-            prompt: finalPrompt,
-            size: "1024x1024",
-            quality: "low",
-            n: 1
-          })
-        }
-      );
+      const response = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + OPENAI_API_KEY
+        },
+        body: JSON.stringify({
+          model: "gpt-image-1",
+          prompt: finalPrompt,
+          size: "1024x1024",
+          quality: "low",
+          n: 1
+        })
+      });
 
       const data = await response.json();
 
-      if (data.error) {
-        return res.json({ success: false, error: data.error });
-      }
+      if (data.error) return res.json({ success: false, error: data.error });
 
-      if (!data.data || !data.data[0] || !data.data[0].b64_json) {
-        return res.json({
-          success: false,
-          error: "No image returned",
-          raw: data
-        });
+      if (!data.data?.[0]?.b64_json) {
+        return res.json({ success: false, error: "No image returned", raw: data });
       }
 
       return res.json({
@@ -111,10 +110,10 @@ app.post("/image", async (req, res) => {
       });
     }
 
-    // ✅ CASE 2: input image present -> IMAGE EDIT
+    // ================= CASE 2: IMAGE PROVIDED -> EDIT =================
     let cleanBase64 = input_image_base64.trim();
 
-    // remove "data:image/png;base64," if present
+    // remove: data:image/jpeg;base64,....
     if (cleanBase64.startsWith("data:image")) {
       cleanBase64 = cleanBase64.substring(cleanBase64.indexOf(",") + 1);
     }
@@ -127,9 +126,10 @@ app.post("/image", async (req, res) => {
     form.append("size", "1024x1024");
     form.append("n", "1");
 
+    // upload image
     form.append("image", imageBuffer, {
-      filename: "input.png",
-      contentType: "image/png"
+      filename: "input.jpg",
+      contentType: "image/jpeg"
     });
 
     const response = await fetch("https://api.openai.com/v1/images/edits", {
@@ -143,11 +143,9 @@ app.post("/image", async (req, res) => {
 
     const data = await response.json();
 
-    if (data.error) {
-      return res.json({ success: false, error: data.error });
-    }
+    if (data.error) return res.json({ success: false, error: data.error });
 
-    if (!data.data || !data.data[0] || !data.data[0].b64_json) {
+    if (!data.data?.[0]?.b64_json) {
       return res.json({
         success: false,
         error: "No image returned (edit)",
@@ -162,7 +160,7 @@ app.post("/image", async (req, res) => {
     });
 
   } catch (err) {
-    res.json({ success: false, error: err.message });
+    return res.json({ success: false, error: err.message });
   }
 });
 
