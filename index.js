@@ -3,7 +3,9 @@ import fetch from "node-fetch";
 import FormData from "form-data";
 
 const app = express();
-app.use(express.json({ limit: "25mb" })); // base64 image large hota hai
+
+// Base64 image bada hota hai isliye limit increase
+app.use(express.json({ limit: "25mb" }));
 
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -18,7 +20,7 @@ app.post("/text", async (req, res) => {
   try {
     const { prompt } = req.body;
 
-    if (!prompt) {
+    if (!prompt || prompt.trim().length === 0) {
       return res.json({
         success: false,
         message: "Prompt missing"
@@ -43,19 +45,19 @@ app.post("/text", async (req, res) => {
       return res.json({ success: false, error: data.error });
     }
 
-    res.json({
+    return res.json({
       success: true,
       reply: data.choices?.[0]?.message?.content || ""
     });
 
   } catch (err) {
-    res.json({ success: false, error: err.message });
+    return res.json({ success: false, error: err.message });
   }
 });
 
 /* ================= IMAGE MODEL (PROMPT + STYLE + OPTIONAL IMAGE) ================= */
 /*
-Android se ye JSON aayega:
+Android se JSON aayega:
 
 Case 1: No image
 {
@@ -75,17 +77,25 @@ app.post("/image", async (req, res) => {
   try {
     const { prompt, style, input_image_base64 } = req.body;
 
-    if (!prompt) {
+    if (!prompt || prompt.trim().length === 0) {
       return res.json({
         success: false,
         message: "Prompt missing"
       });
     }
 
-    // style optional hai, default realistic
-    const finalStyle = style && style.trim().length > 0 ? style.trim() : "Realistic";
+    if (!OPENAI_API_KEY) {
+      return res.json({
+        success: false,
+        message: "OPENAI_API_KEY missing in server env"
+      });
+    }
 
-    // final prompt me style attach kar do
+    // style optional hai
+    const finalStyle =
+      style && style.trim().length > 0 ? style.trim() : "Realistic";
+
+    // final prompt me style attach
     const finalPrompt = ${prompt}\nStyle: ${finalStyle};
 
     // ================= CASE 1: NO IMAGE -> GENERATION =================
@@ -112,10 +122,11 @@ app.post("/image", async (req, res) => {
         return res.json({ success: false, error: data.error });
       }
 
+      // b64_json check
       if (!data.data || !data.data[0] || !data.data[0].b64_json) {
         return res.json({
           success: false,
-          error: "No image returned",
+          error: "No image returned (generate)",
           raw: data
         });
       }
@@ -128,6 +139,7 @@ app.post("/image", async (req, res) => {
     }
 
     // ================= CASE 2: IMAGE PROVIDED -> EDIT =================
+
     // base64 clean
     let cleanBase64 = input_image_base64.trim();
 
@@ -144,7 +156,7 @@ app.post("/image", async (req, res) => {
     form.append("size", "1024x1024");
     form.append("n", "1");
 
-    // IMPORTANT: image file attach
+    // input image attach
     form.append("image", imageBuffer, {
       filename: "input.png",
       contentType: "image/png"
