@@ -13,20 +13,37 @@ app.get("/", (req, res) => {
   res.send("Imagix AI Server Running ✅");
 });
 
+/* ================= HEALTH CHECK ================= */
+app.get("/health", (req, res) => {
+  res.json({
+    success: true,
+    status: "ok",
+    port: PORT,
+    hasKey: !!OPENAI_API_KEY
+  });
+});
+
 /* ================= TEXT MODEL ================= */
 app.post("/text", async (req, res) => {
   try {
+    if (!OPENAI_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        message: "OPENAI_API_KEY missing in Render Environment Variables"
+      });
+    }
+
     const { prompt } = req.body;
 
-    if (!prompt) {
-      return res.json({ success: false, message: "Prompt missing" });
+    if (!prompt || prompt.trim().length === 0) {
+      return res.status(400).json({ success: false, message: "Prompt missing" });
     }
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": "Bearer " + OPENAI_API_KEY
+        Authorization: Bearer ${OPENAI_API_KEY}
       },
       body: JSON.stringify({
         model: "gpt-4.1-mini",
@@ -36,46 +53,40 @@ app.post("/text", async (req, res) => {
 
     const data = await response.json();
 
-    if (data.error) return res.json({ success: false, error: data.error });
+    if (!response.ok) {
+      return res.status(response.status).json({
+        success: false,
+        message: "OpenAI API Error",
+        raw: data
+      });
+    }
 
     return res.json({
       success: true,
       reply: data.choices?.[0]?.message?.content || ""
     });
   } catch (err) {
-    return res.json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
 /* ================= IMAGE (GENERATE + EDIT) ================= */
-/*
-Android JSON:
-
-1) Generate:
-{
-  "prompt": "a lion",
-  "style": "Realistic"
-}
-
-2) Edit (image selected):
-{
-  "prompt": "make it anime",
-  "style": "Anime",
-  "input_image_base64": "...."
-}
-*/
-
 app.post("/image", async (req, res) => {
   try {
+    if (!OPENAI_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        message: "OPENAI_API_KEY missing in Render Environment Variables"
+      });
+    }
+
     const { prompt, style, input_image_base64 } = req.body;
 
-    if (!prompt) {
-      return res.json({ success: false, message: "Prompt missing" });
+    if (!prompt || prompt.trim().length === 0) {
+      return res.status(400).json({ success: false, message: "Prompt missing" });
     }
 
     const finalStyle = style && style.trim().length > 0 ? style.trim() : "Realistic";
-
-    // ✅ IMPORTANT: backticks (template string) - error fix
     const finalPrompt = ${prompt}\nStyle: ${finalStyle};
 
     // ================= CASE 1: NO IMAGE -> GENERATE =================
@@ -84,7 +95,7 @@ app.post("/image", async (req, res) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": "Bearer " + OPENAI_API_KEY
+          Authorization: Bearer ${OPENAI_API_KEY}
         },
         body: JSON.stringify({
           model: "gpt-image-1",
@@ -97,10 +108,16 @@ app.post("/image", async (req, res) => {
 
       const data = await response.json();
 
-      if (data.error) return res.json({ success: false, error: data.error });
+      if (!response.ok) {
+        return res.status(response.status).json({
+          success: false,
+          message: "OpenAI Image Generate Error",
+          raw: data
+        });
+      }
 
       if (!data.data?.[0]?.b64_json) {
-        return res.json({ success: false, error: "No image returned", raw: data });
+        return res.status(500).json({ success: false, error: "No image returned", raw: data });
       }
 
       return res.json({
@@ -113,7 +130,6 @@ app.post("/image", async (req, res) => {
     // ================= CASE 2: IMAGE PROVIDED -> EDIT =================
     let cleanBase64 = input_image_base64.trim();
 
-    // remove: data:image/jpeg;base64,....
     if (cleanBase64.startsWith("data:image")) {
       cleanBase64 = cleanBase64.substring(cleanBase64.indexOf(",") + 1);
     }
@@ -126,7 +142,6 @@ app.post("/image", async (req, res) => {
     form.append("size", "1024x1024");
     form.append("n", "1");
 
-    // upload image
     form.append("image", imageBuffer, {
       filename: "input.jpg",
       contentType: "image/jpeg"
@@ -135,7 +150,7 @@ app.post("/image", async (req, res) => {
     const response = await fetch("https://api.openai.com/v1/images/edits", {
       method: "POST",
       headers: {
-        "Authorization": "Bearer " + OPENAI_API_KEY,
+        Authorization: Bearer ${OPENAI_API_KEY},
         ...form.getHeaders()
       },
       body: form
@@ -143,10 +158,16 @@ app.post("/image", async (req, res) => {
 
     const data = await response.json();
 
-    if (data.error) return res.json({ success: false, error: data.error });
+    if (!response.ok) {
+      return res.status(response.status).json({
+        success: false,
+        message: "OpenAI Image Edit Error",
+        raw: data
+      });
+    }
 
     if (!data.data?.[0]?.b64_json) {
-      return res.json({
+      return res.status(500).json({
         success: false,
         error: "No image returned (edit)",
         raw: data
@@ -158,13 +179,12 @@ app.post("/image", async (req, res) => {
       mode: "edit",
       image_base64: data.data[0].b64_json
     });
-
   } catch (err) {
-    return res.json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
 /* ================= START SERVER ================= */
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log("Imagix AI server running on port " + PORT);
 });
