@@ -43,7 +43,7 @@ app.post("/text", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: Bearer ${OPENAI_API_KEY}
+        "Authorization": Bearer ${OPENAI_API_KEY}
       },
       body: JSON.stringify({
         model: "gpt-4.1-mini",
@@ -95,7 +95,7 @@ app.post("/image", async (req, res) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: Bearer ${OPENAI_API_KEY}
+          "Authorization": Bearer ${OPENAI_API_KEY}
         },
         body: JSON.stringify({
           model: "gpt-image-1",
@@ -117,7 +117,11 @@ app.post("/image", async (req, res) => {
       }
 
       if (!data.data?.[0]?.b64_json) {
-        return res.status(500).json({ success: false, error: "No image returned", raw: data });
+        return res.status(500).json({
+          success: false,
+          error: "No image returned",
+          raw: data
+        });
       }
 
       return res.json({
@@ -130,6 +134,7 @@ app.post("/image", async (req, res) => {
     // ================= CASE 2: IMAGE PROVIDED -> EDIT =================
     let cleanBase64 = input_image_base64.trim();
 
+    // remove: data:image/jpeg;base64,....
     if (cleanBase64.startsWith("data:image")) {
       cleanBase64 = cleanBase64.substring(cleanBase64.indexOf(",") + 1);
     }
@@ -142,6 +147,7 @@ app.post("/image", async (req, res) => {
     form.append("size", "1024x1024");
     form.append("n", "1");
 
+    // upload image
     form.append("image", imageBuffer, {
       filename: "input.jpg",
       contentType: "image/jpeg"
@@ -150,7 +156,7 @@ app.post("/image", async (req, res) => {
     const response = await fetch("https://api.openai.com/v1/images/edits", {
       method: "POST",
       headers: {
-        Authorization: Bearer ${OPENAI_API_KEY},
+        "Authorization": Bearer ${OPENAI_API_KEY},
         ...form.getHeaders()
       },
       body: form
