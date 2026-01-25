@@ -62,10 +62,10 @@ app.post("/image", async (req, res) => {
     const finalStyle =
       style && style.trim().length > 0 ? style.trim() : "Realistic";
 
-    // ✅ IMPORTANT: Backticks use karo (yehi error fix hai)
+    // ✅ IMPORTANT: backticks correct
     const finalPrompt = ${prompt}\nStyle: ${finalStyle};
 
-    /* ================= CASE 1: NO IMAGE => GENERATE ================= */
+    // ================= CASE 1: NO IMAGE -> GENERATE =================
     if (!input_image_base64 || input_image_base64.trim().length === 0) {
 
       const response = await fetch("https://api.openai.com/v1/images/generations", {
@@ -104,11 +104,10 @@ app.post("/image", async (req, res) => {
       });
     }
 
-    /* ================= CASE 2: IMAGE PROVIDED => EDIT ================= */
-
+    // ================= CASE 2: IMAGE PROVIDED -> EDIT =================
     let cleanBase64 = input_image_base64.trim();
 
-    // remove data:image/...;base64,
+    // remove: data:image/png;base64,
     if (cleanBase64.startsWith("data:image")) {
       cleanBase64 = cleanBase64.substring(cleanBase64.indexOf(",") + 1);
     }
@@ -116,7 +115,7 @@ app.post("/image", async (req, res) => {
     const imageBuffer = Buffer.from(cleanBase64, "base64");
 
     const form = new FormData();
-    form.append("model", "gpt-image-1");
+    form form.append("model", "gpt-image-1");
     form.append("prompt", finalPrompt);
     form.append("size", "1024x1024");
     form.append("n", "1");
