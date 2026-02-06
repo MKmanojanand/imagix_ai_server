@@ -7,23 +7,21 @@ app.use(express.json({ limit: "25mb" }));
 
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const FIREBASE_DB_URL = process.env.FIREBASE_DB_URL;
 
-// 🔥 CHANGE THIS
-const FIREBASE_DB_URL = "https://imagix-ai-e69c7-default-rtdb.firebaseio.com/";
+/* ================== COST CONFIG ================== */
+// Approx safe estimates (USD)
+const COST = {
+  text: 0.0005,
+  image_generate: 0.002,
+  image_edit: 0.003
+};
 
-/* ================= COST HELPERS ================= */
-
-function estimateCost(type) {
-  // ⚠️ approx values (safe estimate)
-  if (type === "image_generate") return 0.002; // $0.002
-  if (type === "image_edit") return 0.003;     // $0.003
-  if (type === "text") return 0.0005;           // $0.0005
-  return 0;
-}
-
-async function logCostToFirebase(type) {
+/* ================== FIREBASE LOGGER ================== */
+async function logUsage(type) {
   try {
-    const cost = estimateCost(type);
+    if (!FIREBASE_DB_URL) return;
+
     const today = new Date().toISOString().split("T")[0];
 
     await fetch(
@@ -33,17 +31,17 @@ async function logCostToFirebase(type) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: type,
-          cost: cost,
+          cost: COST[type] || 0,
           time: Date.now()
         })
       }
     );
   } catch (e) {
-    console.log("Cost log failed:", e.message);
+    console.log("Firebase log failed:", e.message);
   }
 }
 
-/* ================= BASIC ROUTES ================= */
+/* ================== BASIC ROUTES ================== */
 
 app.get("/", (req, res) => {
   res.send("Imagix AI Server Running ✅");
@@ -58,24 +56,17 @@ app.get("/health", (req, res) => {
   });
 });
 
-/* ================= TEXT API ================= */
+/* ================== TEXT API ================== */
 
 app.post("/text", async (req, res) => {
   try {
     if (!OPENAI_API_KEY) {
-      return res.status(500).json({
-        success: false,
-        message: "OPENAI_API_KEY missing"
-      });
+      return res.status(500).json({ success: false, message: "API key missing" });
     }
 
     const { prompt } = req.body;
-
-    if (!prompt || prompt.trim().length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Prompt missing"
-      });
+    if (!prompt || !prompt.trim()) {
+      return res.status(400).json({ success: false, message: "Prompt missing" });
     }
 
     const response = await fetch(
@@ -96,57 +87,39 @@ app.post("/text", async (req, res) => {
     const data = await response.json();
 
     if (!response.ok) {
-      return res.status(response.status).json({
-        success: false,
-        message: "OpenAI API Error",
-        raw: data
-      });
+      return res.status(response.status).json({ success: false, raw: data });
     }
 
-    // 🔥 COST LOG
-    await logCostToFirebase("text");
+    await logUsage("text");
 
-    return res.json({
+    res.json({
       success: true,
       reply: data.choices?.[0]?.message?.content || ""
     });
 
   } catch (err) {
-    return res.status(500).json({
-      success: false,
-      error: err.message
-    });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
-/* ================= IMAGE API ================= */
+/* ================== IMAGE API ================== */
 
 app.post("/image", async (req, res) => {
   try {
     if (!OPENAI_API_KEY) {
-      return res.status(500).json({
-        success: false,
-        message: "OPENAI_API_KEY missing"
-      });
+      return res.status(500).json({ success: false, message: "API key missing" });
     }
 
     const { prompt, style, input_image_base64 } = req.body;
-
-    if (!prompt || prompt.trim().length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Prompt missing"
-      });
+    if (!prompt || !prompt.trim()) {
+      return res.status(400).json({ success: false, message: "Prompt missing" });
     }
 
-    const finalStyle =
-      style && style.trim().length > 0 ? style.trim() : "Realistic";
-
+    const finalStyle = style?.trim() || "Realistic";
     const finalPrompt = ${prompt}\nStyle: ${finalStyle};
 
-    /* ========= GENERATE ========= */
-    if (!input_image_base64 || input_image_base64.trim().length === 0) {
-
+    /* ===== IMAGE GENERATE ===== */
+    if (!input_image_base64) {
       const response = await fetch(
         "https://api.openai.com/v1/images/generations",
         {
@@ -168,15 +141,10 @@ app.post("/image", async (req, res) => {
       const data = await response.json();
 
       if (!response.ok || !data.data?.[0]?.b64_json) {
-        return res.status(500).json({
-          success: false,
-          message: "Image generation failed",
-          raw: data
-        });
+        return res.status(500).json({ success: false, raw: data });
       }
 
-      // 🔥 COST LOG
-      await logCostToFirebase("image_generate");
+      await logUsage("image_generate");
 
       return res.json({
         success: true,
@@ -185,12 +153,10 @@ app.post("/image", async (req, res) => {
       });
     }
 
-    /* ========= EDIT ========= */
-
-    let cleanBase64 = input_image_base64.trim();
+    /* ===== IMAGE EDIT ===== */
+    let cleanBase64 = input_image_base64;
     if (cleanBase64.startsWith("data:image")) {
-      cleanBase64 =
-        cleanBase64.substring(cleanBase64.indexOf(",") + 1);
+      cleanBase64 = cleanBase64.split(",")[1];
     }
 
     const imageBuffer = Buffer.from(cleanBase64, "base64");
@@ -198,7 +164,7 @@ app.post("/image", async (req, res) => {
     const form = new FormData();
     form.append("model", "gpt-image-1");
     form.append("prompt", finalPrompt);
-    form.append("size", "1024x1024");
+    form.append("size", "512x512");
     form.append("n", "1");
     form.append("image", imageBuffer, {
       filename: "input.jpg",
@@ -220,31 +186,23 @@ app.post("/image", async (req, res) => {
     const data = await response.json();
 
     if (!response.ok || !data.data?.[0]?.b64_json) {
-      return res.status(500).json({
-        success: false,
-        message: "Image edit failed",
-        raw: data
-      });
+      return res.status(500).json({ success: false, raw: data });
     }
 
-    // 🔥 COST LOG
-    await logCostToFirebase("image_edit");
+    await logUsage("image_edit");
 
-    return res.json({
+    res.json({
       success: true,
       mode: "edit",
       image_base64: data.data[0].b64_json
     });
 
   } catch (err) {
-    return res.status(500).json({
-      success: false,
-      error: err.message
-    });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
-/* ================= START SERVER ================= */
+/* ================== START ================== */
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log("Imagix AI server running on port " + PORT);
