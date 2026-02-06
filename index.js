@@ -170,7 +170,7 @@ app.post("/image", async (req, res) => {
       // 🔥 Firebase log
       await logToFirebase("/admin/usage/image_generate", {
         time: Date.now(),
-        size: "512x512"
+        size: "1024x1024"
       });
 
       return res.json({
@@ -192,7 +192,7 @@ app.post("/image", async (req, res) => {
     const form = new FormData();
     form.append("model", "gpt-image-1");
     form.append("prompt", finalPrompt);
-    form.append("size", "512x512");
+    form.append("size", "1024x1024");
     form.append("n", "1");
     form.append("image", imageBuffer, {
       filename: "input.jpg",
@@ -224,7 +224,7 @@ app.post("/image", async (req, res) => {
     // 🔥 Firebase log
     await logToFirebase("/admin/usage/image_edit", {
       time: Date.now(),
-      size: "512x512"
+      size: "1024x1024"
     });
 
     return res.json({
