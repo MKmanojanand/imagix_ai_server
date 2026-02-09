@@ -8,7 +8,6 @@ app.use(express.json({ limit: "25mb" }));
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const FIREBASE_DB_URL = process.env.FIREBASE_DB_URL;
-const POLLINATIONS_KEY = process.env.POLLINATIONS_KEY;
 
 async function logToFirebase(path, data) {
   if (!FIREBASE_DB_URL) return;
@@ -18,7 +17,9 @@ async function logToFirebase(path, data) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data)
     });
-  } catch {}
+  } catch (e) {
+    console.log("Firebase log failed");
+  }
 }
 
 app.get("/", (req, res) => {
@@ -28,11 +29,12 @@ app.get("/", (req, res) => {
 app.get("/health", (req, res) => {
   res.json({
     ok: true,
-    openai: !!OPENAI_API_KEY,
-    pollinations: !!POLLINATIONS_KEY,
-    firebase: !!FIREBASE_DB_URL
+    openai: Boolean(OPENAI_API_KEY),
+    firebase: Boolean(FIREBASE_DB_URL)
   });
 });
+
+/* ================= TEXT ================= */
 
 app.post("/text", async (req, res) => {
   try {
@@ -45,38 +47,34 @@ app.post("/text", async (req, res) => {
       return res.status(400).json({ error: "Prompt missing" });
     }
 
-    const response = await fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + OPENAI_API_KEY
-        },
-        body: JSON.stringify({
-          model: "gpt-4.1-mini",
-          messages: [{ role: "user", content: prompt }]
-        })
-      }
-    );
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + OPENAI_API_KEY
+      },
+      body: JSON.stringify({
+        model: "gpt-4.1-mini",
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
 
-    const data = await response.json();
-    if (!response.ok) return res.status(500).json(data);
+    const data = await r.json();
+    if (!r.ok) return res.status(500).json(data);
 
     await logToFirebase("/admin/usage/text", {
       time: Date.now(),
       chars: prompt.length
     });
 
-    res.json({
-      success: true,
-      reply: data.choices[0].message.content
-    });
+    res.json({ success: true, reply: data.choices[0].message.content });
 
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
+
+/* ================= IMAGE ================= */
 
 app.post("/image", async (req, res) => {
   try {
@@ -86,29 +84,23 @@ app.post("/image", async (req, res) => {
       return res.status(400).json({ error: "Prompt missing" });
     }
 
+    /* ===== FREE (Pollinations – NO KEY, NO WATERMARK) ===== */
     if (mode === "free") {
 
       const encoded = encodeURIComponent(prompt);
       const url =
-        https://image.pollinations.ai/prompt/${encoded} +
-        ?nologo=true&nofeed=true&seed=${Date.now()};
+        "https://image.pollinations.ai/prompt/" +
+        encoded +
+        "?nologo=true&nofeed=true&seed=" +
+        Date.now();
 
-      const response = await fetch(url, {
-        headers: POLLINATIONS_KEY
-          ? { Authorization: Bearer ${POLLINATIONS_KEY} }
-          : {}
-      });
+      const r = await fetch(url);
+      if (!r.ok) return res.status(500).json({ error: "Pollinations failed" });
 
-      if (!response.ok) {
-        return res.status(500).json({ error: "Pollinations failed" });
-      }
-
-      const buffer = await response.arrayBuffer();
+      const buffer = await r.arrayBuffer();
       const base64 = Buffer.from(buffer).toString("base64");
 
-      await logToFirebase("/admin/usage/free_generate", {
-        time: Date.now()
-      });
+      await logToFirebase("/admin/usage/free_generate", { time: Date.now() });
 
       return res.json({
         success: true,
@@ -117,6 +109,7 @@ app.post("/image", async (req, res) => {
       });
     }
 
+    /* ===== OPENAI REQUIRED ===== */
     if (!OPENAI_API_KEY) {
       return res.status(500).json({ error: "OPENAI_API_KEY missing" });
     }
@@ -124,32 +117,28 @@ app.post("/image", async (req, res) => {
     const finalStyle = style && style.trim() ? style : "Realistic";
     const finalPrompt = prompt + "\nStyle: " + finalStyle;
 
+    /* ===== NORMAL GENERATE ===== */
     if (!input_image_base64) {
 
-      const response = await fetch(
-        "https://api.openai.com/v1/images/generations",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer " + OPENAI_API_KEY
-          },
-          body: JSON.stringify({
-            model: "gpt-image-1",
-            prompt: finalPrompt,
-            size: "1024x1024",
-            quality: "low",
-            n: 1
-          })
-        }
-      );
-
-      const data = await response.json();
-      if (!response.ok) return res.status(500).json(data);
-
-      await logToFirebase("/admin/usage/image_generate", {
-        time: Date.now()
+      const r = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + OPENAI_API_KEY
+        },
+        body: JSON.stringify({
+          model: "gpt-image-1",
+          prompt: finalPrompt,
+          size: "1024x1024",
+          quality: "low",
+          n: 1
+        })
       });
+
+      const data = await r.json();
+      if (!r.ok) return res.status(500).json(data);
+
+      await logToFirebase("/admin/usage/image_generate", { time: Date.now() });
 
       return res.json({
         success: true,
@@ -158,6 +147,7 @@ app.post("/image", async (req, res) => {
       });
     }
 
+    /* ===== IMAGE EDIT ===== */
     let clean = input_image_base64;
     if (clean.startsWith("data:image")) {
       clean = clean.split(",")[1];
@@ -174,26 +164,21 @@ app.post("/image", async (req, res) => {
       contentType: "image/png"
     });
 
-    const response = await fetch(
-      "https://api.openai.com/v1/images/edits",
-      {
-        method: "POST",
-        headers: {
-          Authorization: "Bearer " + OPENAI_API_KEY,
-          ...form.getHeaders()
-        },
-        body: form
-      }
-    );
-
-    const data = await response.json();
-    if (!response.ok) return res.status(500).json(data);
-
-    await logToFirebase("/admin/usage/image_edit", {
-      time: Date.now()
+    const r = await fetch("https://api.openai.com/v1/images/edits", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + OPENAI_API_KEY,
+        ...form.getHeaders()
+      },
+      body: form
     });
 
-    return res.json({
+    const data = await r.json();
+    if (!r.ok) return res.status(500).json(data);
+
+    await logToFirebase("/admin/usage/image_edit", { time: Date.now() });
+
+    res.json({
       success: true,
       mode: "edit",
       image_base64: data.data[0].b64_json
